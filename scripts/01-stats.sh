@@ -105,7 +105,3 @@ printf '  追加 %s 行 → %s\n' "$(grep -c ERROR "$LOG" || true)" "$OUT"
 printf '  文件当前共 %s 行 (历史累积)\n' "$(wc -l < "$OUT")"
 
 printf '\n\033[1;32m✓ 完成\033[0m\n'
-
-# 临时: 故意失败
-echo "intentional failure"
-exit 1
