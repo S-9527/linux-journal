@@ -70,8 +70,12 @@ fi
 # │ 备份名字用【目录名_时间戳】，不能只有时间戳                       │
 # │ 否则多个源目录的备份混在一起，分不清哪个是哪个                    │
 # └─────────────────────────────────────────────────────────────────┘
-readonly SRC_NAME="$(basename "$(cd "$SRC" && pwd)")"
-readonly STAMP="$(date +%Y%m%d-%H%M%S)"
+# 声明和赋值分开, 否则会掩盖命令退出码(SC2155)
+# 配合 set -e, 这里的 cd 失败会立刻终止脚本
+SRC_NAME="$(basename "$(cd "$SRC" && pwd)")"
+readonly SRC_NAME
+STAMP="$(date +%Y%m%d-%H%M%S)"
+readonly STAMP
 readonly ARCHIVE_NAME="${SRC_NAME}_${STAMP}.tar.gz"
 readonly ARCHIVE_PATH="$DEST/$ARCHIVE_NAME"
 TMP_FILE="$DEST/${TMP_PREFIX}${ARCHIVE_NAME}"
@@ -89,7 +93,8 @@ ok()  { printf '\033[1;32m✓\033[0m %s\n' "$1"; }
 log "备份 $SRC → $DEST"
 
 log "计算源目录大小..."
-readonly SRC_SIZE="$(du -sh "$SRC" | cut -f1)"
+SRC_SIZE="$(du -sh "$SRC" | cut -f1)"
+readonly SRC_SIZE
 log "  源目录大小: $SRC_SIZE"
 
 log "创建压缩包 (可能需要一点时间)..."
@@ -107,7 +112,8 @@ ok "压缩包完整"
 
 mv "$TMP_FILE" "$ARCHIVE_PATH"
 TMP_FILE=""
-readonly ARCHIVE_SIZE="$(du -h "$ARCHIVE_PATH" | cut -f1)"
+ARCHIVE_SIZE="$(du -h "$ARCHIVE_PATH" | cut -f1)"
+readonly ARCHIVE_SIZE
 ok "已保存 $ARCHIVE_NAME ($ARCHIVE_SIZE)"
 
 # ┌─────────────────────────────────────────────────────────────────┐
@@ -146,9 +152,9 @@ printf '  当前份数: %s\n' "$(find "$DEST" -maxdepth 1 -name "${SRC_NAME}_*.t
 printf '  总占用:   %s\n' "$(du -sh "$DEST" | cut -f1)"
 
 printf '\n\033[1;32m当前保留的备份:\033[0m\n'
-find "$DEST" -maxdepth 1 -name "${SRC_NAME}_*.tar.gz" -printf '%T@ %f %s\n' \
+find "$DEST" -maxdepth 1 -name "${SRC_NAME}_*.tar.gz" -printf '%T@ %f\n' \
     | sort -rn \
     | cut -d' ' -f2- \
-    | while read -r name size; do
+    | while read -r name; do
         printf '  %-32s %s\n' "$name" "$(du -h "$DEST/$name" | cut -f1)"
     done

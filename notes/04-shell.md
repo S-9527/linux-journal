@@ -338,7 +338,45 @@ gh pr checks --watch     # 观察变红
 
 ---
 
-## 8. 思考题答案
+## 8. `readonly VAR="$(cmd)"` 会掩盖退出码
+
+这是写 CI 时 shellcheck 实际报出来的坑。写法上看似严谨，实际上**破坏了 `set -e`**。
+
+```console
+$ cat sc_demo.sh
+set -e
+readonly BAD="$(cd /nonexistent && pwd)"
+echo "这行照常打印 → 说明 set -e 失效了"
+
+$ ./sc_demo.sh
+sc_demo.sh: line 4: cd: /nonexistent: No such file or directory
+这行照常打印 → 说明 set -e 失效了
+退出码: 0                    ← 明明失败了，退出码却是 0
+```
+
+**原因：** bash 执行 `readonly BAD="$(cmd)"` 时，是先把 `$(cmd)` 的输出**作为参数**交给 `readonly`，`readonly` 自身的退出码是 0，脚本认为一切正常。中间 `cd` 的失败被彻底吞掉。
+
+正确写法是**声明和赋值分离**：
+
+```console
+$ cat sc_demo2.sh
+set -e
+GOOD="$(cd /nonexistent && pwd)"
+readonly GOOD
+echo "这行不打印 → set -e 正常生效"
+
+$ ./sc_demo2.sh
+sc_demo2.sh: line 4: cd: /nonexistent: No such file or directory
+退出码: 1                    ← 正确
+```
+
+**这就是 shellcheck 的 SC2155。** 本仓库的脚本现在全部采用分离写法（`01-stats.sh` 的 `SCRIPT_DIR`，`04-backup.sh` 的 `SRC_NAME` / `STAMP` / `SRC_SIZE` / `ARCHIVE_SIZE`）。
+
+**通用规则：任何被 `readonly` / `export` / `local` 修饰的变量，如果赋值来自命令替换，就拆成两行。**
+
+---
+
+## 9. 思考题答案
 
 ### 1. `set -e` 的局限性
 
