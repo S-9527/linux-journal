@@ -1,0 +1,69 @@
+# docker-compose.yml — 演示服务间通过【服务名】互相访问
+#
+# 启动: docker compose up -d
+# 查看: docker compose ps / docker compose logs -f
+# 停止: docker compose down          (保留数据)
+#      docker compose down -v       (连数据卷一起删)
+
+services:
+  # ┌─────────────────────────────────────────────────────────────────┐
+  # │ 你的应用                                                          │
+  # │                                                                 │
+  # │ 关键: 连数据库用主机名 db，不是 localhost!                        │
+  # │ 容器里的 localhost 指的是容器自己                                  │
+  # └─────────────────────────────────────────────────────────────────┘
+  app:
+    build:
+      context: ./stats
+      dockerfile: Dockerfile
+    image: linux-stats:1.0
+    container_name: stats-app
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:28080:80"    # 本地端口:容器端口, 绑 127.0.0.1 只给本机
+    environment:
+      LOG_LEVEL: info
+      # 密码走 .env 文件, 不要硬编码在这里
+      DB_PASSWORD: ${DB_PASSWORD:?请在 .env 里设置 DB_PASSWORD}
+    depends_on:
+      db:
+        condition: service_healthy   # 等数据库健康了再启动
+    networks:
+      - appnet
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.5"
+
+  # ┌─────────────────────────────────────────────────────────────────┐
+  # │ 数据库                                                            │
+  # └─────────────────────────────────────────────────────────────────┘
+  db:
+    image: postgres:17-alpine
+    container_name: stats-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: statsdb
+      POSTGRES_USER: statsuser
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?请在 .env 里设置 DB_PASSWORD}
+    # 不映射端口到宿主机 → 外部完全访问不到, 只有同网络的其他容器能连
+    volumes:
+      - dbdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U statsuser -d statsdb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - appnet
+
+networks:
+  appnet:
+    driver: bridge
+
+volumes:
+  dbdata:
+    # 具名卷。docker compose down 不会删, down -v 才会。
+    # 容器删了数据还在 —— 这就是卷的意义。
