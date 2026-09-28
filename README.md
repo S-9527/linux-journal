@@ -42,7 +42,9 @@ Unix 的核心哲学是：**每个命令只干一件事，干完把结果吐到�
 
 ```
 linux-journal/
-├── data/                    # 练习素材（日志、目录树），只读不改
+├── data/                    # 练习素材，只读不改
+│   ├── logs/access.log      # 10 行 Web 访问日志，awk/sed 练习用
+│   └── playground/          # 一棵目录树，含嵌套与大文件，find/du 练习用
 ├── labs/                    # 实验产物，按阶段分目录
 │   ├── 01-filesystem/
 │   ├── 02-text/
@@ -52,7 +54,7 @@ linux-journal/
 │   ├── 06-docker/
 │   └── 07-internals/
 ├── scripts/                 # 正式交付物（可执行脚本）
-├── notes/                   # 实验笔记 → 未来的 internals 文档
+├── notes/                   # 笔记正文 → 这里是本仓库的主体
 └── .github/
     ├── workflows/ci.yml     # 云端 Linux 机器（Phase 4 启用）
     └── ISSUE_TEMPLATE/
@@ -64,7 +66,7 @@ linux-journal/
 
 | 阶段 | 主题 | 核心命令 | 状态 |
 |---|---|---|---|
-| 0 | GitHub 协作闭环热身 | `gh` / `git` 基础 | ⬜ |
+| 0 | GitHub 协作闭环热身 | `gh` / `git` 基础 | ✅ |
 | 1 | 文件系统与管道 | `ls` `find` `grep` `sort` `uniq` `wc` `>` `\|` | ⬜ |
 | 2 | 文本三剑客 | `grep -E` `sed` `awk` `vim` | ⬜ |
 | 3 | 权限与进程 | `chmod` `chown` `ps` `kill` `nohup` `free` `df` `du` | ⬜ |
@@ -95,11 +97,18 @@ gh issue list --label "phase/1"
 ## 快捷命令
 
 ```bash
+# 任务
 gh issue list                    # 我的任务清单
 gh issue view 1                  # 看详情
+
+# 开发
 git switch -c feat/xxx           # 开分支干活
+git add -p                       # 逐块暂存，保证每个 commit 干净
+git log --oneline --graph        # 看历史
+
+# PR
 gh pr create --fill              # 开 PR
 gh pr diff                       # 自查改动
-gh pr checks                     # 看 CI
+gh pr checks --watch             # 盯着 CI
 gh pr merge --squash             # 合并
 ```
