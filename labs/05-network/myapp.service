@@ -1,0 +1,71 @@
+# 示例 systemd service 文件
+#
+# 位置: /etc/systemd/system/myapp.service
+# 权限: 644
+#
+# 完整流程:
+#   sudo cp myapp.service /etc/systemd/system/
+#   sudo systemctl daemon-reload      # ← 忘了这步是新手经典错误
+#   sudo systemctl enable --now myapp  # enable=开机自启, --now=立即启动
+#   systemctl status myapp
+#   journalctl -u myapp -f            # 跟踪日志
+#
+# 本文件仅作参考，未安装到系统。
+
+[Unit]
+# 描述（`systemctl status` 和 `systemctl list-units` 里显示）
+Description=My Node.js Application
+# 启动顺序：本服务在 network.target 之后启动
+After=network.target
+# 强依赖：network-online.target 没就绪就不启动
+Wants=network-online.target
+
+[Service]
+# simple = 主进程就是 ExecStart 本身，systemd 直接跟踪它
+# 另有 forking / oneshot / notify / exec 等类型
+Type=simple
+
+# ★ 不要用 root 跑应用。建专用用户：
+#   sudo useradd -r -s /usr/sbin/nologin myapp
+User=myapp
+Group=myapp
+
+WorkingDirectory=/opt/myapp
+
+# ★ 绝对路径。systemd 的 PATH 很干净，不加载 .bashrc，
+#   相对路径和 nvm 装的 node 都找不到
+ExecStart=/usr/bin/node /opt/myapp/index.js
+
+# 环境变量。注意：不读 ~/.bashrc
+Environment=NODE_ENV=production
+Environment=PORT=3000
+# 从文件读敏感信息（比写在 unit 里安全）
+EnvironmentFile=-/opt/myapp/.env
+
+# 自动重启
+Restart=always
+# 重启前等 5 秒，避免疯狂重启打爆日志
+RestartSec=5
+# 10 秒内重启超过 5 次就放弃，标记为 failed
+StartLimitBurst=5
+StartLimitIntervalSec=10
+
+# 资源限制
+MemoryMax=512M
+TasksMax=256
+
+# 日志
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=myapp
+
+# 安全加固
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/myapp/data
+
+[Install]
+# 挂到 multi-user.target 下，enable 时创建符号链接
+WantedBy=multi-user.target
