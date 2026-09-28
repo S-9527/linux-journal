@@ -1,0 +1,20 @@
+name: CI
+
+# 这是一个占位 workflow，Phase 4 正式启用。
+#
+# 关键认知：GitHub Actions 就是一台临时借给你的 Linux 机器。
+# 你在本地 WSL 里练的 shell 命令，原封不动写进这里，就能在云端 Linux 上跑。
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  placeholder:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 占位检查
+        run: |
+          echo "CI 还没启用，见 README 路线图 Phase 4"
+          echo "当前 runner: $(uname -a)"
