@@ -1,9 +1,7 @@
 name: CI
 
-# 这是一个占位 workflow，Phase 4 正式启用。
-#
-# 关键认知：GitHub Actions 就是一台临时借给你的 Linux 机器。
-# 你在本地 WSL 里练的 shell 命令，原封不动写进这里，就能在云端 Linux 上跑。
+# GitHub Actions 就是一台临时借给你的 Linux 机器。
+# 下面这些 run 里的命令，和你在本地 WSL 里敲的完全一样。
 on:
   push:
     branches: [main]
@@ -11,10 +9,55 @@ on:
     branches: [main]
 
 jobs:
-  placeholder:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 环境信息
+        run: |
+          echo "runner: $(uname -a)"
+          echo "bash:   $BASH_VERSION"
+          echo "user:   $(whoami)"
+          echo "pwd:    $PWD"
+
+      # 关键点: 文件在 git 里是 644，执行时没有 x。
+      # 所以要么提交时 chmod +x，要么在这里补一刀。
+      # 用 git 保留执行位最干净（见下方 git update-index）
+      - name: 赋予执行权限
+        run: chmod +x scripts/*.sh
+
+      - name: Shell 语法检查
+        run: |
+          for f in scripts/*.sh; do
+            echo "检查 $f"
+            bash -n "$f" || exit 1
+          done
+
+      - name: 运行日志统计脚本
+        run: ./scripts/01-stats.sh
+
+      - name: 运行磁盘占用脚本
+        run: ./scripts/03-disk-usage.sh . 1
+
+      - name: 备份脚本自测
+        run: |
+          mkdir -p /tmp/src /tmp/dst
+          echo "test" > /tmp/src/file.txt
+          ./scripts/04-backup.sh /tmp/src /tmp/dst 3
+          ls -la /tmp/dst
+          # 验证压缩包真的能解开
+          mkdir -p /tmp/verify
+          tar -xzf /tmp/dst/src_*.tar.gz -C /tmp/verify
+          test -f /tmp/verify/src/file.txt && echo "✓ 备份内容验证通过"
+
+  build:
     runs-on: ubuntu-latest
     steps:
-      - name: 占位检查
+      - uses: actions/checkout@v4
+      - name: ShellCheck（可选，装了就跑）
         run: |
-          echo "CI 还没启用，见 README 路线图 Phase 4"
-          echo "当前 runner: $(uname -a)"
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq shellcheck
+          shellcheck -S warning scripts/*.sh || echo "shellcheck 有告警，继续"
