@@ -63,7 +63,6 @@ printf '  %-8s %-12s %-10s %s\n' "----" "----" "----" "----"
 
 open_count=0
 closed_count=0
-filtered_count=0
 
 for port in "${PORTS[@]}"; do
     start=$(date +%s%N)

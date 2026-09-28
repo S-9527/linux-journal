@@ -12,3 +12,4 @@ labs/**/scratch/
 *.tar
 *.tar.gz
 *.zip
+labs/01-filesystem/errors.txt

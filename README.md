@@ -7,6 +7,9 @@
 这不是一份"看完就完"的教程，而是一条**留痕的学习路径**。每个阶段对应一个 GitHub Issue，
 每次提交对应一个 Pull Request，每个 PR 都会被 review。
 
+> **📖 从 [笔记索引](notes/README.md) 开始。** 那里有全部 7 篇笔记的入口、
+> 实测结论速查表、以及按阶段组织的命令速查。
+
 ---
 
 ## 学习模型
@@ -64,23 +67,37 @@ linux-journal/
 
 ## 路线图
 
-| 阶段 | 主题 | 核心命令 | 状态 |
-|---|---|---|---|
-| 0 | GitHub 协作闭环热身 | `gh` / `git` 基础 | ✅ |
-| 1 | 文件系统与管道 | `ls` `find` `grep` `sort` `uniq` `wc` `>` `\|` | ⬜ |
-| 2 | 文本三剑客 | `grep -E` `sed` `awk` `vim` | ⬜ |
-| 3 | 权限与进程 | `chmod` `chown` `ps` `kill` `nohup` `free` `df` `du` | ⬜ |
-| 4 | Shell 脚本与 CI | `if` `for` `case` `set -euo pipefail` / GitHub Actions | ⬜ |
-| 5 | 网络与远程运维 | `ip` `ss` `curl` `ssh` `rsync` `systemctl` | ⬜ |
-| 6 | Docker | `docker` `Dockerfile` `compose` | ⬜ |
-| 7 | 系统原理 | `strace` `fork` `cgroup` `namespace` | ⬜ |
-| 8 | 真实开源贡献 | 给别人的仓库提 PR | ⬜ |
+| 阶段 | 主题 | 核心命令 | 笔记 | 状态 |
+|---|---|---|---|---|
+| 0 | GitHub 协作闭环热身 | `gh` / `git` 基础 | — | ✅ |
+| 1 | 文件系统与管道 | `ls` `find` `grep` `sort` `uniq` `wc` `>` `\|` | [→](notes/01-filesystem.md) | ✅ |
+| 2 | 文本三剑客 | `grep -E` `sed` `awk` `vim` | [→](notes/02-text.md) | ✅ |
+| 3 | 权限与进程 | `chmod` `chown` `ps` `kill` `nohup` `free` `df` `du` | [→](notes/03-permissions.md) | ✅ |
+| 4 | Shell 脚本与 CI | `if` `for` `case` `set -euo pipefail` / GitHub Actions | [→](notes/04-shell.md) | ✅ |
+| 5 | 网络与远程运维 | `ip` `ss` `curl` `ssh` `rsync` `systemctl` | [→](notes/05-network.md) | ✅ |
+| 6 | Docker | `docker` `Dockerfile` `compose` | [→](notes/06-docker.md) | ✅ |
+| 7 | 系统原理 | `strace` `fork` `cgroup` `namespace` | [→](notes/07-internals.md) | ✅ |
+| 8 | 真实开源贡献 | 给别人的仓库提 PR | — | ⬜ |
 
 进度看板用命令行查，不用刷网页：
 
 ```bash
-gh issue list --label "phase/1"
+gh issue list --state all
 ```
+
+### 一些值得单独看的实测结论
+
+| 现象 | 真相 |
+|---|---|
+| `ls` 一个文件要 178 次系统调用 | 动态链接 + 用户组查询 + 挂载点查询 |
+| 容器 `ExitCode: 0` 但服务被杀 | SIGKILL 杀的是应用，shell 正常退出。必须查 `OOMKilled` |
+| `df` 说满了，`du` 算不出多少 | 已删除但被进程持有的文件，在 `/proc/*/fd` 里能看到 |
+| 本机能访问，局域网访问不了 | 服务绑了 `127.0.0.1`，或客户端走了代理 |
+| 目录 `444` 能 `ls` 但不能 `cd` | `r` 给列名，`x` 给访问权 |
+| `sort -r` 把 9 排在 10 前面 | 缺 `-n`，走了字典序 |
+| 批量删文件误删 | `rm $*` 把 `"a b"` 拆成两个词，应该用 `"$@"` |
+
+完整清单见 [笔记索引](notes/README.md#实测结论速查)。
 
 ---
 

@@ -8,7 +8,10 @@
 # 演示 Unix 管道哲学: 每个命令只干一件事, 结果吐给下一个。
 set -euo pipefail
 
-readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# 注意: 不要写 readonly VAR="$(...)"
+# 那样会掩盖命令的退出码, 失败时脚本不会停(SC2155)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+readonly SCRIPT_DIR
 readonly LOG="${1:-$SCRIPT_DIR/../data/logs/access.log}"
 
 if [[ ! -f "$LOG" ]]; then

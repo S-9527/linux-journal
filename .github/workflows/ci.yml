@@ -9,55 +9,148 @@ on:
     branches: [main]
 
 jobs:
-  test:
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: 环境信息
-        run: |
-          echo "runner: $(uname -a)"
-          echo "bash:   $BASH_VERSION"
-          echo "user:   $(whoami)"
-          echo "pwd:    $PWD"
-
-      # 关键点: 文件在 git 里是 644，执行时没有 x。
-      # 所以要么提交时 chmod +x，要么在这里补一刀。
-      # 用 git 保留执行位最干净（见下方 git update-index）
-      - name: 赋予执行权限
-        run: chmod +x scripts/*.sh
-
-      - name: Shell 语法检查
-        run: |
-          for f in scripts/*.sh; do
-            echo "检查 $f"
-            bash -n "$f" || exit 1
-          done
-
-      - name: 运行日志统计脚本
-        run: ./scripts/01-stats.sh
-
-      - name: 运行磁盘占用脚本
-        run: ./scripts/03-disk-usage.sh . 1
-
-      - name: 备份脚本自测
-        run: |
-          mkdir -p /tmp/src /tmp/dst
-          echo "test" > /tmp/src/file.txt
-          ./scripts/04-backup.sh /tmp/src /tmp/dst 3
-          ls -la /tmp/dst
-          # 验证压缩包真的能解开
-          mkdir -p /tmp/verify
-          tar -xzf /tmp/dst/src_*.tar.gz -C /tmp/verify
-          test -f /tmp/verify/src/file.txt && echo "✓ 备份内容验证通过"
-
-  build:
+  shellcheck:
+    name: Shell 静态检查
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: ShellCheck（可选，装了就跑）
+      - name: 安装 shellcheck
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq shellcheck
-          shellcheck -S warning scripts/*.sh || echo "shellcheck 有告警，继续"
+      - name: 检查所有脚本
+        run: shellcheck -S warning scripts/*.sh
+
+  syntax:
+    name: 语法检查
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: bash -n
+        run: |
+          for f in scripts/*.sh; do
+            echo "检查 $f"
+            bash -n "$f"
+          done
+
+  scripts:
+    name: 脚本自测
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 赋予执行权限
+        run: chmod +x scripts/*.sh
+
+      - name: 日志统计脚本
+        run: ./scripts/01-stats.sh
+
+      - name: 磁盘占用脚本
+        run: ./scripts/03-disk-usage.sh . 1
+
+      - name: 端口扫描脚本（扫自己）
+        run: ./scripts/05-port-check.sh 127.0.0.1 1
+
+      - name: 备份脚本往返验证
+        run: |
+          mkdir -p /tmp/src/nested /tmp/dst /tmp/verify
+          echo "hello" > /tmp/src/a.txt
+          echo "world" > /tmp/src/nested/b.txt
+
+          ./scripts/04-backup.sh /tmp/src /tmp/dst 3
+
+          # 解压回来，验证内容真的在里面
+          tar -xzf /tmp/dst/src_*.tar.gz -C /tmp/verify
+          test -f /tmp/verify/src/a.txt
+          test -f /tmp/verify/src/nested/b.txt
+          grep -q "hello" /tmp/verify/src/a.txt
+          echo "✓ 备份往返验证通过"
+
+      - name: 备份保留策略验证（KEEP=2 连跑 4 次）
+        run: |
+          rm -rf /tmp/k /tmp/keep
+          mkdir -p /tmp/keep
+          echo x > /tmp/keep/f.txt
+          for i in 1 2 3 4; do
+            sleep 1.1
+            ./scripts/04-backup.sh /tmp/keep /tmp/k 2 > /dev/null
+          done
+          count=$(ls -1 /tmp/k/*.tar.gz 2>/dev/null | wc -l)
+          echo "实际保留 $count 份"
+          test "$count" -eq 2
+
+      - name: 参数校验（应当全部失败）
+        run: |
+          fail_expected() {
+            if "$@" > /dev/null 2>&1; then
+              echo "✗ 预期失败但成功了: $*"
+              exit 1
+            fi
+            echo "✓ 正确拒绝: $*"
+          }
+          fail_expected ./scripts/03-disk-usage.sh /nonexistent
+          fail_expected ./scripts/03-disk-usage.sh . abc
+          fail_expected ./scripts/04-backup.sh
+          fail_expected ./scripts/04-backup.sh /nonexistent /tmp/x
+          fail_expected ./scripts/05-port-check.sh 127.0.0.1 0
+
+  docker:
+    name: Docker 构建
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: 构建镜像
+        run: docker build -t linux-stats:1.0 labs/06-docker/stats
+      - name: 冒烟测试
+        run: |
+          docker run --rm linux-stats:1.0 --version
+          docker run --rm linux-stats:1.0 --help
+          # 未知参数应当返回非 0
+          if docker run --rm linux-stats:1.0 --bogus; then
+            echo "✗ 未知参数应返回非 0"
+            exit 1
+          fi
+          # 必须非 root
+          uid=$(docker run --rm --entrypoint id linux-stats:1.0 -u)
+          echo "容器内 uid=$uid"
+          test "$uid" != "0"
+      - name: compose 语法验证
+        run: docker compose -f labs/06-docker/docker-compose.yml config --quiet
+        env:
+          DB_PASSWORD: ci-test-password
+
+  links:
+    name: 文档完整性
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: 检查笔记里的相对链接
+        run: |
+          # 找出所有 markdown 里指向仓库内的相对链接，验证文件存在
+          # 注意: 链接里的 #anchor 要剥掉，只校验文件路径部分
+          for md in notes/*.md README.md; do
+            [ -f "$md" ] || continue
+            dir=$(dirname "$md")
+            grep -oP '\]\(\K[^)#][^)]*' "$md" 2>/dev/null | while read -r link; do
+              case "$link" in
+                http*|mailto:*) continue ;;
+              esac
+              # 剥掉 #anchor, 只校验文件路径部分
+              # 变量名不能叫 path —— zsh 里 path 是 PATH 的特殊别名
+              linkpath="${link%%#*}"
+              [ -z "$linkpath" ] && continue   # 纯 anchor 链接跳过
+              target="$dir/$linkpath"
+              if [ ! -e "$target" ]; then
+                echo "✗ $md 里的链接失效: $link"
+                exit 1
+              fi
+            done
+          done
+          echo "✓ 文档链接检查完成"
+      - name: 统计
+        run: |
+          echo "笔记:"
+          wc -l notes/*.md
+          echo
+          echo "脚本:"
+          wc -l scripts/*.sh
